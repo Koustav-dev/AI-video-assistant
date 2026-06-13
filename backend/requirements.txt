@@ -1,0 +1,41 @@
+# ── AI Video Assistant v2 — Backend Requirements ──────────────────────────────
+# Python >= 3.10 recommended
+
+# ── Web Framework ─────────────────────────────────────────────────────────────
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+pydantic>=2.7.0
+python-multipart>=0.0.9
+
+# ── Audio / Video Acquisition ─────────────────────────────────────────────────
+yt-dlp>=2024.4.9               # YouTube audio download
+pydub>=0.25.1                  # Audio manipulation
+ffmpeg-python>=0.2.0           # FFmpeg Python bindings
+
+# ── Speech-to-Text — Groq Whisper API (free tier) ─────────────────────────────
+groq>=0.9.0                    # Groq Python client (Whisper large-v3 API)
+
+# ── Translation ───────────────────────────────────────────────────────────────
+deep-translator>=1.11.4        # Hindi → English translation
+
+# ── LLM — Mistral via LangChain ───────────────────────────────────────────────
+langchain>=0.2.0
+langchain-core>=0.2.0
+langchain-community>=0.2.0
+langchain-groq>=0.1.0
+
+# ── Embeddings — Google Gemini Embedding 2 Preview ───────────────────────────
+langchain-google-genai>=1.0.6  # Gemini embeddings + Gemini LLM support
+google-generativeai>=0.7.0     # Google GenAI SDK
+
+# ── Vector Store ──────────────────────────────────────────────────────────────
+chromadb>=0.5.0                # Local in-memory vector store
+
+# ── Text Processing ───────────────────────────────────────────────────────────
+tiktoken>=0.7.0
+numpy>=1.26.0
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0
+requests>=2.32.0
+tqdm>=4.66.0

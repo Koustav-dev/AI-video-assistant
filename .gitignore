@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+venv/
+env/
+.venv/
+*.egg
+
+# Environment
+.env
+!.env.example
+
+# Node
+node_modules/
+dist/
+.cache/
+*.local
+
+# Temp / data
+tmp/
+temp/
+*.tmp
+chroma_db/
+*.db
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# IDE
+.vscode/
+.idea/
+*.iml
