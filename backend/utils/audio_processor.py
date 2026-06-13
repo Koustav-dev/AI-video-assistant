@@ -18,11 +18,20 @@ def _is_youtube(source: str) -> bool:
     return "youtube.com" in source or "youtu.be" in source
 
 
+def _cookie_args() -> list:
+    """If a YouTube cookies file exists (set via Render secret file), use it."""
+    cookies_path = "/etc/secrets/cookies.txt"
+    if os.path.exists(cookies_path):
+        return ["--cookies", cookies_path]
+    return []
+
+
 def _download_youtube(url: str, out_dir: str) -> str:
     """Download best audio from YouTube as a WAV file."""
     out_template = os.path.join(out_dir, "audio.%(ext)s")
     cmd = [
         "yt-dlp",
+        *_cookie_args(),
         "--extract-audio",
         "--audio-format", "wav",
         "--audio-quality", "0",
@@ -36,6 +45,7 @@ def _download_youtube(url: str, out_dir: str) -> str:
         out_template_mp3 = os.path.join(out_dir, "audio_dl.%(ext)s")
         cmd2 = [
             "yt-dlp",
+            *_cookie_args(),
             "--extract-audio",
             "--audio-format", "mp3",
             "--output", out_template_mp3,
