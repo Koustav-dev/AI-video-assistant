@@ -2,7 +2,7 @@
 // Core hook — manages pipeline state, SSE streaming, and chat
 import { useState, useCallback, useRef } from 'react'
 
-const API_BASE = '/api'
+const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
 const STEPS = [
   { key: 'audio',      label: 'Downloading & Processing Audio',   icon: '🔊' },
