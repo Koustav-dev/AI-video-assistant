@@ -86,7 +86,7 @@ def _run_pipeline(session_id: str, source: str, language: str, loop):
         # ── Try YouTube captions first (avoids yt-dlp/bot-detection issues) ──
         if _is_youtube(source):
             emit("step_start", {"step": "audio", "label": "Fetching YouTube Captions"})
-            transcript = get_youtube_transcript(source, language)
+            transcript, caption_error = get_youtube_transcript(source, language)
             if transcript:
                 emit("step_done", {"step": "audio", "info": "Captions found, skipping audio download"})
                 emit("step_start", {"step": "transcript", "label": "Transcribing Audio"})
@@ -96,7 +96,7 @@ def _run_pipeline(session_id: str, source: str, language: str, loop):
                 })
                 emit("transcript", {"text": transcript})
             else:
-                emit("step_done", {"step": "audio", "info": "No captions found, downloading audio instead"})
+                emit("step_done", {"step": "audio", "info": f"No captions used ({caption_error}); trying audio download"})
 
         if transcript is None:
             # ── Step 1: Audio processing ─────────────────────────────────────

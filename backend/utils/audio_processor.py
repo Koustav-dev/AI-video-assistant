@@ -14,18 +14,17 @@ CHUNK_MB = 24          # keep just under the 25 MB Groq limit
 CHUNK_BYTES = CHUNK_MB * 1024 * 1024
 
 
-def get_youtube_transcript(url: str, language: str = "en") -> str | None:
+def get_youtube_transcript(url: str, language: str = "en") -> tuple[str | None, str | None]:
     """
     Try to fetch existing YouTube captions via youtube-transcript-api.
-    Returns the transcript text, or None if unavailable (no captions,
-    disabled, etc.) so the caller can fall back to audio download.
-    This avoids yt-dlp entirely, sidestepping YouTube's bot/IP blocking
-    on cloud hosts.
+    Returns (text, None) on success, or (None, error_message) on failure
+    so the caller can decide whether to fall back to audio download and
+    can log/show *why* it failed.
     """
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
     except ImportError:
-        return None
+        return None, "youtube-transcript-api not installed"
 
     # Extract video ID from various YouTube URL formats
     video_id = None
@@ -34,7 +33,7 @@ def get_youtube_transcript(url: str, language: str = "en") -> str | None:
     elif "v=" in url:
         video_id = url.split("v=")[1].split("&")[0]
     if not video_id:
-        return None
+        return None, f"Could not extract video ID from URL: {url}"
 
     try:
         ytt = YouTubeTranscriptApi()
@@ -53,9 +52,11 @@ def get_youtube_transcript(url: str, language: str = "en") -> str | None:
 
         text = " ".join(snippet.text for snippet in fetched)
         text = text.strip()
-        return text if text else None
-    except Exception:
-        return None
+        if text:
+            return text, None
+        return None, "Transcript was empty"
+    except Exception as e:
+        return None, f"{type(e).__name__}: {e}"
 
 
 def _is_youtube(source: str) -> bool:
