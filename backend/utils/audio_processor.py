@@ -14,6 +14,50 @@ CHUNK_MB = 24          # keep just under the 25 MB Groq limit
 CHUNK_BYTES = CHUNK_MB * 1024 * 1024
 
 
+def get_youtube_transcript(url: str, language: str = "en") -> str | None:
+    """
+    Try to fetch existing YouTube captions via youtube-transcript-api.
+    Returns the transcript text, or None if unavailable (no captions,
+    disabled, etc.) so the caller can fall back to audio download.
+    This avoids yt-dlp entirely, sidestepping YouTube's bot/IP blocking
+    on cloud hosts.
+    """
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+    except ImportError:
+        return None
+
+    # Extract video ID from various YouTube URL formats
+    video_id = None
+    if "youtu.be/" in url:
+        video_id = url.split("youtu.be/")[1].split("?")[0].split("&")[0]
+    elif "v=" in url:
+        video_id = url.split("v=")[1].split("&")[0]
+    if not video_id:
+        return None
+
+    try:
+        ytt = YouTubeTranscriptApi()
+        # Prefer requested language, fall back to any available, then auto-translate to English
+        try:
+            fetched = ytt.fetch(video_id, languages=[language, "en"])
+        except Exception:
+            transcript_list = ytt.list(video_id)
+            try:
+                t = transcript_list.find_transcript([language, "en"])
+            except Exception:
+                t = next(iter(transcript_list))
+                if t.is_translatable:
+                    t = t.translate("en")
+            fetched = t.fetch()
+
+        text = " ".join(snippet.text for snippet in fetched)
+        text = text.strip()
+        return text if text else None
+    except Exception:
+        return None
+
+
 def _is_youtube(source: str) -> bool:
     return "youtube.com" in source or "youtu.be" in source
 

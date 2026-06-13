@@ -8,7 +8,8 @@ pydantic>=2.7.0
 python-multipart>=0.0.9
 
 # ── Audio / Video Acquisition ─────────────────────────────────────────────────
-yt-dlp>=2024.4.9               # YouTube audio download
+yt-dlp>=2024.4.9               # YouTube audio download (fallback)
+youtube-transcript-api>=0.6.2  # Fetch YouTube captions directly (primary path)
 pydub>=0.25.1                  # Audio manipulation
 ffmpeg-python>=0.2.0           # FFmpeg Python bindings
 

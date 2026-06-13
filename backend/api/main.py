@@ -27,7 +27,7 @@ load_dotenv()
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from utils.audio_processor import process_input
+from utils.audio_processor import process_input, get_youtube_transcript, _is_youtube
 from core.transcriber import transcribe_all
 from core.summarizer import summarize, generate_title
 from core.extractor import (
@@ -81,25 +81,43 @@ def _run_pipeline(session_id: str, source: str, language: str, loop):
         _emit(q, event_type, data, loop)
 
     try:
-        # ── Step 1: Audio processing ─────────────────────────────────────────
-        emit("step_start", {"step": "audio", "label": "Downloading & Processing Audio"})
-        chunks = process_input(source)
-        emit("step_done", {"step": "audio", "info": f"{len(chunks)} chunk(s) ready"})
+        transcript = None
 
-        # ── Step 2: Transcription ─────────────────────────────────────────────
-        emit("step_start", {"step": "transcript", "label": "Transcribing Audio"})
-        total_chunks = len(chunks)
+        # ── Try YouTube captions first (avoids yt-dlp/bot-detection issues) ──
+        if _is_youtube(source):
+            emit("step_start", {"step": "audio", "label": "Fetching YouTube Captions"})
+            transcript = get_youtube_transcript(source, language)
+            if transcript:
+                emit("step_done", {"step": "audio", "info": "Captions found, skipping audio download"})
+                emit("step_start", {"step": "transcript", "label": "Transcribing Audio"})
+                emit("step_done", {
+                    "step": "transcript",
+                    "info": f"{len(transcript.split())} words (from captions)"
+                })
+                emit("transcript", {"text": transcript})
+            else:
+                emit("step_done", {"step": "audio", "info": "No captions found, downloading audio instead"})
 
-        def progress_cb(current, total):
-            emit("progress", {"step": "transcript", "current": current, "total": total,
-                              "pct": round(current / total * 100)})
+        if transcript is None:
+            # ── Step 1: Audio processing ─────────────────────────────────────
+            emit("step_start", {"step": "audio", "label": "Downloading & Processing Audio"})
+            chunks = process_input(source)
+            emit("step_done", {"step": "audio", "info": f"{len(chunks)} chunk(s) ready"})
 
-        transcript = transcribe_all(chunks, language, progress_callback=progress_cb)
-        emit("step_done", {
-            "step": "transcript",
-            "info": f"{len(transcript.split())} words transcribed"
-        })
-        emit("transcript", {"text": transcript})
+            # ── Step 2: Transcription ─────────────────────────────────────────
+            emit("step_start", {"step": "transcript", "label": "Transcribing Audio"})
+            total_chunks = len(chunks)
+
+            def progress_cb(current, total):
+                emit("progress", {"step": "transcript", "current": current, "total": total,
+                                  "pct": round(current / total * 100)})
+
+            transcript = transcribe_all(chunks, language, progress_callback=progress_cb)
+            emit("step_done", {
+                "step": "transcript",
+                "info": f"{len(transcript.split())} words transcribed"
+            })
+            emit("transcript", {"text": transcript})
 
         # ── Step 3: Title generation ──────────────────────────────────────────
         emit("step_start", {"step": "title", "label": "Generating Title"})
