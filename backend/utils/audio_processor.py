@@ -33,53 +33,59 @@ def _cookie_args() -> list:
     return []
 
 
-def _common_args() -> list:
-    """Common yt-dlp args: cookies + use android client to avoid JS/n-challenge."""
-    return _cookie_args() + [
-        "--extractor-args", "youtube:player_client=android,-tv,-web",
+def _strategies() -> list:
+    """Different yt-dlp client/cookie combos to try in order, since YouTube's
+    bot-detection varies by client and changes over time. tv/ios clients
+    generally don't need cookies; web client needs cookies if available."""
+    cookies = _cookie_args()
+    return [
+        ["--extractor-args", "youtube:player_client=tv"],
+        ["--extractor-args", "youtube:player_client=ios"],
+        *([cookies + ["--extractor-args", "youtube:player_client=web"]] if cookies else []),
+        ["--extractor-args", "youtube:player_client=android"],
     ]
 
 
-def _download_youtube(url: str, out_dir: str) -> str:
-    """Download best audio from YouTube as a WAV file."""
-    out_template = os.path.join(out_dir, "audio.%(ext)s")
+def _run_yt_dlp(extra_args: list, out_template: str, audio_format: str, url: str):
     cmd = [
         "yt-dlp",
-        *_common_args(),
+        *extra_args,
         "--extract-audio",
-        "--audio-format", "wav",
+        "--audio-format", audio_format,
         "--audio-quality", "0",
         "--output", out_template,
         "--no-playlist",
         url,
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        # Try mp3 fallback
-        out_template_mp3 = os.path.join(out_dir, "audio_dl.%(ext)s")
-        cmd2 = [
-            "yt-dlp",
-            *_common_args(),
-            "--extract-audio",
-            "--audio-format", "mp3",
-            "--output", out_template_mp3,
-            "--no-playlist",
-            url,
-        ]
-        result2 = subprocess.run(cmd2, capture_output=True, text=True)
-        if result2.returncode != 0:
-            raise RuntimeError(f"yt-dlp failed: {result.stderr}\n{result2.stderr}")
-        # Convert mp3 → wav
-        mp3_files = list(Path(out_dir).glob("audio_dl.*"))
-        if not mp3_files:
-            raise RuntimeError("yt-dlp produced no output file.")
-        mp3_path = str(mp3_files[0])
-        wav_path = os.path.join(out_dir, "audio.wav")
-        subprocess.run(
-            ["ffmpeg", "-y", "-i", mp3_path, "-ar", "16000", "-ac", "1", wav_path],
-            check=True, capture_output=True
-        )
-        return wav_path
+    return subprocess.run(cmd, capture_output=True, text=True)
+
+
+def _download_youtube(url: str, out_dir: str) -> str:
+    """Download best audio from YouTube as a WAV file.
+    Tries several client strategies since YouTube's bot-detection is inconsistent."""
+    out_template = os.path.join(out_dir, "audio.%(ext)s")
+    out_template_mp3 = os.path.join(out_dir, "audio_dl.%(ext)s")
+
+    errors = []
+    for strategy in _strategies():
+        # try wav directly
+        result = _run_yt_dlp(strategy, out_template, "wav", url)
+        if result.returncode == 0 and list(Path(out_dir).glob("audio.*")):
+            break
+        # try mp3 fallback with same strategy
+        result2 = _run_yt_dlp(strategy, out_template_mp3, "mp3", url)
+        if result2.returncode == 0 and list(Path(out_dir).glob("audio_dl.*")):
+            mp3_files = list(Path(out_dir).glob("audio_dl.*"))
+            mp3_path = str(mp3_files[0])
+            wav_path = os.path.join(out_dir, "audio.wav")
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", mp3_path, "-ar", "16000", "-ac", "1", wav_path],
+                check=True, capture_output=True
+            )
+            break
+        errors.append(result.stderr + "\n" + result2.stderr)
+    else:
+        raise RuntimeError("yt-dlp failed with all client strategies:\n" + "\n---\n".join(errors))
 
     wav_files = list(Path(out_dir).glob("audio.*"))
     if not wav_files:
