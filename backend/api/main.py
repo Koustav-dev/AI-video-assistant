@@ -82,6 +82,7 @@ def _run_pipeline(session_id: str, source: str, language: str, loop):
 
     try:
         transcript = None
+        caption_error = None
 
         # ── Try YouTube captions first (avoids yt-dlp/bot-detection issues) ──
         if _is_youtube(source):
@@ -101,7 +102,12 @@ def _run_pipeline(session_id: str, source: str, language: str, loop):
         if transcript is None:
             # ── Step 1: Audio processing ─────────────────────────────────────
             emit("step_start", {"step": "audio", "label": "Downloading & Processing Audio"})
-            chunks = process_input(source)
+            try:
+                chunks = process_input(source)
+            except Exception as e:
+                raise RuntimeError(
+                    f"Captions unavailable ({caption_error}); audio download also failed: {e}"
+                )
             emit("step_done", {"step": "audio", "info": f"{len(chunks)} chunk(s) ready"})
 
             # ── Step 2: Transcription ─────────────────────────────────────────
