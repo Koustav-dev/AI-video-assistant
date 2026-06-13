@@ -19,11 +19,25 @@ def _is_youtube(source: str) -> bool:
 
 
 def _cookie_args() -> list:
-    """If a YouTube cookies file exists (set via Render secret file), use it."""
-    cookies_path = "/etc/secrets/cookies.txt"
-    if os.path.exists(cookies_path):
-        return ["--cookies", cookies_path]
+    """If a YouTube cookies file exists (set via Render secret file), copy it
+    to a writable location since yt-dlp needs to rewrite the cookie jar on exit."""
+    src = "/etc/secrets/cookies.txt"
+    if os.path.exists(src):
+        dst = "/tmp/cookies.txt"
+        try:
+            import shutil
+            shutil.copyfile(src, dst)
+        except Exception:
+            dst = src
+        return ["--cookies", dst]
     return []
+
+
+def _common_args() -> list:
+    """Common yt-dlp args: cookies + use android client to avoid JS/n-challenge."""
+    return _cookie_args() + [
+        "--extractor-args", "youtube:player_client=android,-tv,-web",
+    ]
 
 
 def _download_youtube(url: str, out_dir: str) -> str:
@@ -31,7 +45,7 @@ def _download_youtube(url: str, out_dir: str) -> str:
     out_template = os.path.join(out_dir, "audio.%(ext)s")
     cmd = [
         "yt-dlp",
-        *_cookie_args(),
+        *_common_args(),
         "--extract-audio",
         "--audio-format", "wav",
         "--audio-quality", "0",
@@ -45,7 +59,7 @@ def _download_youtube(url: str, out_dir: str) -> str:
         out_template_mp3 = os.path.join(out_dir, "audio_dl.%(ext)s")
         cmd2 = [
             "yt-dlp",
-            *_cookie_args(),
+            *_common_args(),
             "--extract-audio",
             "--audio-format", "mp3",
             "--output", out_template_mp3,
