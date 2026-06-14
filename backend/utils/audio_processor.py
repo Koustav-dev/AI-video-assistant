@@ -36,25 +36,36 @@ def get_youtube_transcript(url: str, language: str = "en") -> tuple[str | None, 
         return None, f"Could not extract video ID from URL: {url}"
 
     try:
-        ytt = YouTubeTranscriptApi()
+        proxies = _get_proxies()
+        ytt = YouTubeTranscriptApi(
+            proxies={"http": proxies[0], "https": proxies[0]} if proxies else None
+        )
         # Prefer requested language, fall back to any available, then auto-translate to English
-        try:
-            fetched = ytt.fetch(video_id, languages=[language, "en"])
-        except Exception:
-            transcript_list = ytt.list(video_id)
+        errors_inner = []
+        proxy_list = proxies if proxies else [None]
+        for proxy in proxy_list:
             try:
-                t = transcript_list.find_transcript([language, "en"])
-            except Exception:
-                t = next(iter(transcript_list))
-                if t.is_translatable:
-                    t = t.translate("en")
-            fetched = t.fetch()
-
-        text = " ".join(snippet.text for snippet in fetched)
-        text = text.strip()
-        if text:
-            return text, None
-        return None, "Transcript was empty"
+                ytt = YouTubeTranscriptApi(
+                    proxies={"http": proxy, "https": proxy} if proxy else None
+                )
+                try:
+                    fetched = ytt.fetch(video_id, languages=[language, "en"])
+                except Exception:
+                    transcript_list = ytt.list(video_id)
+                    try:
+                        t = transcript_list.find_transcript([language, "en"])
+                    except Exception:
+                        t = next(iter(transcript_list))
+                        if t.is_translatable:
+                            t = t.translate("en")
+                    fetched = t.fetch()
+                text = " ".join(snippet.text for snippet in fetched).strip()
+                if text:
+                    return text, None
+                return None, "Transcript was empty"
+            except Exception as e:
+                errors_inner.append(f"proxy={proxy}: {type(e).__name__}: {e}")
+        return None, " | ".join(errors_inner)
     except Exception as e:
         return None, f"{type(e).__name__}: {e}"
 
@@ -78,17 +89,35 @@ def _cookie_args() -> list:
     return []
 
 
+def _get_proxies() -> list:
+    """Read comma-separated proxy URLs from env var WEBSHARE_PROXIES.
+    Format: http://user:pass@host:port,http://user:pass@host2:port2,...
+    """
+    raw = os.getenv("WEBSHARE_PROXIES", "")
+    if not raw:
+        # fallback: single proxy env var
+        single = os.getenv("WEBSHARE_PROXY", "")
+        return [single] if single else []
+    return [p.strip() for p in raw.split(",") if p.strip()]
+
+
 def _strategies() -> list:
-    """Different yt-dlp client/cookie combos to try in order, since YouTube's
-    bot-detection varies by client and changes over time. tv/ios clients
-    generally don't need cookies; web client needs cookies if available."""
+    """Different yt-dlp client/cookie/proxy combos to try in order."""
     cookies = _cookie_args()
-    return [
+    proxies = _get_proxies()
+    base_clients = [
         ["--extractor-args", "youtube:player_client=tv"],
         ["--extractor-args", "youtube:player_client=ios"],
         *([cookies + ["--extractor-args", "youtube:player_client=web"]] if cookies else []),
-        ["--extractor-args", "youtube:player_client=android"],
     ]
+    if proxies:
+        # for each proxy, try web client
+        proxy_strategies = [
+            ["--proxy", p, "--extractor-args", "youtube:player_client=web"]
+            for p in proxies
+        ]
+        return proxy_strategies + base_clients
+    return base_clients
 
 
 def _run_yt_dlp(extra_args: list, out_template: str, audio_format: str, url: str):
