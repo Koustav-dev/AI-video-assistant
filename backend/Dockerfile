@@ -1,11 +1,11 @@
 FROM python:3.11-slim
 
-# Install ffmpeg and curl (curl needed to install deno)
+# Install ffmpeg, curl, deno
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ffmpeg curl unzip ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Deno (required by yt-dlp's JS runtime for YouTube extraction)
+# Install Deno
 RUN curl -fsSL https://deno.land/install.sh | sh
 ENV DENO_INSTALL="/root/.deno"
 ENV PATH="$DENO_INSTALL/bin:$PATH"
@@ -14,7 +14,6 @@ WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-# Always use the latest yt-dlp (frequent anti-bot patches)
 RUN pip install --no-cache-dir -U yt-dlp
 
 COPY . .

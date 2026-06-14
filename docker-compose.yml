@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+
+  warp:
+    image: caomingjun/warp
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - WARP_SLEEP=2
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=0
+      - net.ipv4.conf.all.src_valid_mark=1
+
+  backend:
+    build: ./backend
+    restart: always
+    ports:
+      - "8000:8000"
+    depends_on:
+      - warp
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    # backend container talks to warp container by service name
+    extra_hosts:
+      - "localhost:172.17.0.1"
